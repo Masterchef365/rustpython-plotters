@@ -125,6 +125,17 @@ pub fn draw_plots<Db: DrawingBackend>(root: &DrawingArea<Db, Shift>, commands: &
     let mut plot_bottom: f32 = -1.0;
     let mut plot_title = String::new();
 
+    let mut chart = ChartBuilder::on(&root)
+        .caption(&plot_title, ("sans-serif", 25).into_font())
+        .margin(5)
+        .x_label_area_size(30)
+        .y_label_area_size(30)
+        .build_cartesian_2d(plot_left..plot_right, plot_bottom..plot_top)
+        .unwrap();
+
+    chart.configure_mesh().draw().unwrap();
+
+
     for command in commands {
         match &command {
             PlotCommand::Title(title) => plot_title = title.clone(),
@@ -137,16 +148,7 @@ pub fn draw_plots<Db: DrawingBackend>(root: &DrawingArea<Db, Shift>, commands: &
                 plot_right = *right;
             }
             PlotCommand::PlotXY { x, y, label } => {
-                let mut chart = ChartBuilder::on(&root)
-                    .caption(&plot_title, ("sans-serif", 25).into_font())
-                    .margin(5)
-                    .x_label_area_size(30)
-                    .y_label_area_size(30)
-                    .build_cartesian_2d(plot_left..plot_right, plot_bottom..plot_top)
-                    .unwrap();
-
-                chart.configure_mesh().draw().unwrap();
-
+                
                 let coords = 
                         x.iter()
                             .copied()
@@ -159,15 +161,16 @@ pub fn draw_plots<Db: DrawingBackend>(root: &DrawingArea<Db, Shift>, commands: &
                     //.legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], RED));
                 //legend = false;
 
-                chart
-                    .configure_series_labels()
-                    .background_style(&WHITE.mix(0.8))
-                    .border_style(&BLACK)
-                    .draw()
-                    .unwrap();
             }
         }
     }
+
+    chart
+        .configure_series_labels()
+        .background_style(&WHITE.mix(0.8))
+        .border_style(&BLACK)
+        .draw()
+        .unwrap();
 
     root.present().unwrap();
     Ok(())
