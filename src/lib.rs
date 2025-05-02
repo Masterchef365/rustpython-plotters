@@ -21,10 +21,10 @@ pub mod pyplotter {
     use std::borrow::BorrowMut;
     use std::cell::{LazyCell, RefCell};
 
-    use rustpython_vm::builtins::{PyFloat, PyMappingProxy, PyStr};
+    use rustpython_vm::builtins::{PyFloat, PyMappingProxy, PySequenceIterator, PyStr};
     use rustpython_vm::function::KwArgs;
     use rustpython_vm::object::MaybeTraverse;
-    use rustpython_vm::protocol::PyMapping;
+    use rustpython_vm::protocol::{PyMapping, PySequence};
     use rustpython_vm::{PyObjectRef, PyResult, VirtualMachine};
 
     thread_local! {
@@ -43,27 +43,17 @@ pub mod pyplotter {
             .and_then(|label| label.downcast::<PyStr>().ok())
             .map(|py| py.to_string())
             .unwrap_or_default();
-        let mut x_array: Vec<f32> = vec![];
-        x
-            .downcast::<PyMappingProxy>()
-            .map_err(|_| vm.new_runtime_error("X Must be float32".into()))?
-            .try_traverse(&mut |obj| {
-                if let Some(val) = obj.downcast_ref::<PyFloat>(){
-                    x_array.push(val.to_f64() as _);
-                }
-            });
-        
-        let y_array = x_array.clone();
-        /*
-        let y = y
-            .downcast::<PyMappingProxy>()
-            .map_err(|_| vm.new_runtime_error("Y Must be float32".into()))?;
-        */
+
+        let x = PySequence::try_protocol(&x, vm)?;
+        let x: Vec<f32> = x.extract(|f| f.try_float(vm).map(|x| x.to_f64() as f32), vm)?;
+
+        let y = PySequence::try_protocol(&y, vm)?;
+        let y: Vec<f32> = y.extract(|f| f.try_float(vm).map(|y| y.to_f64() as f32), vm)?;
 
         COMMANDS.with(|reader| {
             (**reader).borrow_mut().push(PlotCommand::PlotXY {
-                x: x_array,
-                y: y_array,
+                x,
+                y,
                 label,
             })
         });
