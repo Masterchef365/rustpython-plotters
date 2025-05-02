@@ -4,11 +4,16 @@ use plotters::{
 use rustpython_vm::{builtins::PyModule, PyRef, VirtualMachine};
 
 
+/// Python library export
 pub fn make_module(vm: &VirtualMachine) -> PyRef<PyModule> {
     let module = pyplotter::make_module(vm);
     module
 }
 
+/// Dump the plotting commands plot since the last call
+pub fn dump_commands() -> Vec<PlotCommand> {
+    pyplotter::dump_commands()
+}
 
 #[rustpython_vm::pymodule]
 pub mod pyplotter {
@@ -99,7 +104,7 @@ pub mod pyplotter {
         Ok(())
     }
 
-    pub fn dump_commands() -> Vec<PlotCommand> {
+    pub(crate) fn dump_commands() -> Vec<PlotCommand> {
         COMMANDS.with(|r| std::mem::take(&mut *(**r).borrow_mut()))
     }
 }
