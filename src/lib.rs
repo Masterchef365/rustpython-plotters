@@ -1,8 +1,11 @@
 use plotters::{
-    chart::ChartBuilder, coord::Shift, prelude::{DrawingArea, DrawingBackend, IntoDrawingArea, PathElement}, series::LineSeries, style::{Color, IntoFont, BLACK, RED, WHITE}
+    chart::ChartBuilder,
+    coord::Shift,
+    prelude::{DrawingArea, DrawingBackend},
+    series::LineSeries,
+    style::{Color, IntoFont, BLACK, RED, WHITE},
 };
 use rustpython_vm::{builtins::PyModule, PyRef, VirtualMachine};
-
 
 /// Python library export
 pub fn make_module(vm: &VirtualMachine) -> PyRef<PyModule> {
@@ -21,10 +24,10 @@ pub mod pyplotter {
     use std::borrow::BorrowMut;
     use std::cell::{LazyCell, RefCell};
 
-    use rustpython_vm::builtins::{PyFloat, PyMappingProxy, PySequenceIterator, PyStr};
+    use rustpython_vm::builtins::PyStr;
     use rustpython_vm::function::KwArgs;
-    use rustpython_vm::object::MaybeTraverse;
-    use rustpython_vm::protocol::{PyMapping, PySequence};
+
+    use rustpython_vm::protocol::PySequence;
     use rustpython_vm::{PyObjectRef, PyResult, VirtualMachine};
 
     thread_local! {
@@ -51,26 +54,19 @@ pub mod pyplotter {
         let y: Vec<f32> = y.extract(|f| f.try_float(vm).map(|y| y.to_f64() as f32), vm)?;
 
         COMMANDS.with(|reader| {
-            (**reader).borrow_mut().push(PlotCommand::PlotXY {
-                x,
-                y,
-                label,
-            })
+            (**reader)
+                .borrow_mut()
+                .push(PlotCommand::PlotXY { x, y, label })
         });
         Ok(())
     }
 
     #[pyfunction]
     fn title(title: String, vm: &VirtualMachine) -> PyResult<()> {
-        COMMANDS.with(|reader| {
-            (**reader)
-                .borrow_mut()
-                .push(PlotCommand::Title(title))
-        });
+        COMMANDS.with(|reader| (**reader).borrow_mut().push(PlotCommand::Title(title)));
 
         Ok(())
     }
-
 
     #[pyfunction]
     fn xlim(left: f32, right: f32, vm: &VirtualMachine) -> PyResult<()> {
@@ -116,7 +112,10 @@ pub enum PlotCommand {
     },
 }
 
-pub fn draw_plots<Db: DrawingBackend>(root: &DrawingArea<Db, Shift>, commands: &[PlotCommand]) -> Result<(), String> {
+pub fn draw_plots<Db: DrawingBackend>(
+    root: &DrawingArea<Db, Shift>,
+    commands: &[PlotCommand],
+) -> Result<(), String> {
     root.fill(&WHITE).unwrap();
 
     let mut plot_left: f32 = -1.0;
@@ -124,6 +123,21 @@ pub fn draw_plots<Db: DrawingBackend>(root: &DrawingArea<Db, Shift>, commands: &
     let mut plot_top: f32 = 1.0;
     let mut plot_bottom: f32 = -1.0;
     let mut plot_title = String::new();
+
+    for command in commands {
+        match &command {
+            PlotCommand::Ylim { bottom, top } => {
+                plot_bottom = *bottom;
+                plot_top = *top;
+            }
+            PlotCommand::Xlim { left, right } => {
+                plot_left = *left;
+                plot_right = *right;
+            }
+            PlotCommand::Title(title) => plot_title = title.clone(),
+            _ => (),
+        }
+    }
 
     let mut chart = ChartBuilder::on(&root)
         .caption(&plot_title, ("sans-serif", 25).into_font())
@@ -135,33 +149,22 @@ pub fn draw_plots<Db: DrawingBackend>(root: &DrawingArea<Db, Shift>, commands: &
 
     chart.configure_mesh().draw().unwrap();
 
-
     for command in commands {
         match &command {
-            PlotCommand::Title(title) => plot_title = title.clone(),
-            PlotCommand::Ylim { bottom, top } => {
-                plot_bottom = *bottom;
-                plot_top = *top;
-            }
-            PlotCommand::Xlim { left, right } => {
-                plot_left = *left;
-                plot_right = *right;
-            }
             PlotCommand::PlotXY { x, y, label } => {
-                
-                let coords = 
-                        x.iter()
-                            .copied()
-                            .zip(y.iter().copied())
-                            .collect::<Vec<(f32, f32)>>();
+                let coords = x
+                    .iter()
+                    .copied()
+                    .zip(y.iter().copied())
+                    .collect::<Vec<(f32, f32)>>();
                 chart
                     .draw_series(LineSeries::new(coords, &RED))
                     .unwrap()
                     .label(label);
-                    //.legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], RED));
+                //.legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], RED));
                 //legend = false;
-
-            }
+            },
+            _ => (),
         }
     }
 
