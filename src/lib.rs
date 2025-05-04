@@ -1,7 +1,7 @@
 use plotters::{
     chart::ChartBuilder,
     coord::Shift,
-    prelude::{DrawingArea, DrawingBackend},
+    prelude::{DrawingArea, DrawingBackend, PathElement},
     series::LineSeries,
     style::{Color, IntoFont, BLACK, RED, WHITE},
 };
@@ -62,6 +62,14 @@ pub mod pyplotter {
     }
 
     #[pyfunction]
+    fn legend(vm: &VirtualMachine) -> PyResult<()> {
+        COMMANDS.with(|reader| (**reader).borrow_mut().push(PlotCommand::Legend));
+
+        Ok(())
+    }
+
+
+    #[pyfunction]
     fn title(title: String, vm: &VirtualMachine) -> PyResult<()> {
         COMMANDS.with(|reader| (**reader).borrow_mut().push(PlotCommand::Title(title)));
 
@@ -96,6 +104,7 @@ pub mod pyplotter {
 }
 
 pub enum PlotCommand {
+    Legend,
     Title(String),
     PlotXY {
         x: Vec<f32>,
@@ -123,6 +132,7 @@ pub fn draw_plots<Db: DrawingBackend>(
     let mut plot_top: f32 = 1.0;
     let mut plot_bottom: f32 = -1.0;
     let mut plot_title = String::new();
+    let mut plot_legend = false;
 
     for command in commands {
         match &command {
@@ -135,6 +145,7 @@ pub fn draw_plots<Db: DrawingBackend>(
                 plot_right = *right;
             }
             PlotCommand::Title(title) => plot_title = title.clone(),
+            PlotCommand::Legend => plot_legend = true,
             _ => (),
         }
     }
@@ -152,28 +163,30 @@ pub fn draw_plots<Db: DrawingBackend>(
     for command in commands {
         match &command {
             PlotCommand::PlotXY { x, y, label } => {
+                let color = RED;
                 let coords = x
                     .iter()
                     .copied()
                     .zip(y.iter().copied())
                     .collect::<Vec<(f32, f32)>>();
                 chart
-                    .draw_series(LineSeries::new(coords, &RED))
+                    .draw_series(LineSeries::new(coords, &color))
                     .unwrap()
-                    .label(label);
-                //.legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], RED));
-                //legend = false;
+                    .label(label)
+                    .legend(move |(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], color));
             },
             _ => (),
         }
     }
 
-    chart
-        .configure_series_labels()
-        .background_style(&WHITE.mix(0.8))
-        .border_style(&BLACK)
-        .draw()
-        .unwrap();
+    if plot_legend {
+        chart
+            .configure_series_labels()
+            .background_style(&WHITE.mix(0.8))
+            .border_style(&BLACK)
+            .draw()
+            .unwrap();
+    }
 
     root.present().unwrap();
     Ok(())
